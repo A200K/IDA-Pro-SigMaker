@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros">
+    <IDAPRO_PATH>C:\Program Files\IDA 7.0</IDAPRO_PATH>
+    <IDAPRO_SDK_PATH>$(IDAPRO_PATH)\idasdk70</IDAPRO_SDK_PATH>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemDefinitionGroup />
+  <ItemGroup>
+    <BuildMacro Include="IDAPRO_PATH">
+      <Value>$(IDAPRO_PATH)</Value>
+    </BuildMacro>
+    <BuildMacro Include="IDAPRO_SDK_PATH">
+      <Value>$(IDAPRO_SDK_PATH)</Value>
+    </BuildMacro>
+  </ItemGroup>
+</Project>
