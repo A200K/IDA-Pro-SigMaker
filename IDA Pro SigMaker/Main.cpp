@@ -14,7 +14,8 @@
 enum class SignatureType : uint32_t {
     IDA = 0,
     x64Dbg,
-    Signature_Mask
+    Signature_Mask,
+    SignatureByteArray_Bitmask
 };
 
 typedef struct {
@@ -114,6 +115,30 @@ std::string GenerateCodeSignatureString( Signature &signature ) {
         mask << ( byte.m_IsWildcard ? "?" : "x" );
     }
     auto str = pattern.str( ) + " " + mask.str( );
+    return str;
+}
+
+std::string GenerateByteArrayWithBitMaskSignatureString( Signature &signature ) {
+    std::ostringstream pattern;
+    std::ostringstream mask;
+    // Build hex pattern
+    for ( const auto &byte : signature ) {
+        pattern << "0x" << std::format( "{:02X}", ( byte.m_IsWildcard ? 0 : byte.m_Byte ) ) << ", ";
+        mask << ( byte.m_IsWildcard ? "0" : "1" );
+    }
+    auto patternStr = pattern.str( );
+    auto maskStr = mask.str( );
+
+    // Reverse bitmask
+    std::reverse( maskStr.begin( ), maskStr.end( ) );
+
+    // Remove separators
+    if ( !patternStr.empty( ) ) {
+        patternStr.pop_back( );
+        patternStr.pop_back( );
+    }
+
+    auto str = patternStr + " " + " 0b" + maskStr;
     return str;
 }
 
@@ -227,6 +252,9 @@ std::string FormatSignature( Signature &signature, ea_t ea, SignatureType type )
     case SignatureType::Signature_Mask:
         signatureStr = GenerateCodeSignatureString( signature );
         break;
+    case SignatureType::SignatureByteArray_Bitmask:
+        signatureStr = GenerateByteArrayWithBitMaskSignatureString( signature );
+        break;
     }
     return signatureStr;
 }
@@ -243,7 +271,8 @@ bool idaapi plugin_ctx_t::run( size_t ) {
         "Output format:\n"                                              // Title
         "<IDA Signature:R>\n"				                            // Radio Button 0
         "<x64Dbg Signature:R>\n"			                            // Radio Button 1
-        "<C Signature + Mask:R>>\n"			                            // Radio Button 2
+        "<C Signature + String mask:R>\n"			                            // Radio Button 2
+        "<C Byte Array Signature + Bitmask:R>>\n"			            // Radio Button 3
 
         "Options:\n"                                                    // Title
         "<Wildcards for operands:C>>\n\n";                              // Checkbox Button
@@ -300,7 +329,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
             for ( int i = 0; i < topLength; i++ ) {
                 auto signature = xrefSignatures[i];
                 auto signatureStr = FormatSignature( signature, ea, static_cast< SignatureType >( outputFormat ) );
-                msg( "XREF Signature for %I64X #%i: %s\n", ea, i+1, signatureStr.c_str( ) );
+                msg( "XREF Signature for %I64X #%i: %s\n", ea, i + 1, signatureStr.c_str( ) );
 
                 // Copy first signature only
                 if ( i == 0 ) {
