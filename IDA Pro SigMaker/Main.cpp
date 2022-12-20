@@ -162,7 +162,7 @@ bool SetClipboard( const std::string &text ) {
     return result;
 }
 
-std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands ) {
+std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands, size_t maxSignatureLength = 1000, bool askLongerSignature = true ) {
     if ( ea == BADADDR ) {
         msg( "Invalid address\n" );
         return std::nullopt;
@@ -186,19 +186,23 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands 
         }
 
         // Length check in case the signature becomes too long
-        if ( sigPartLength >= 500 ) {
-            auto result = ask_yn( 1, "Signature is already at %llu bytes. Continue?", signature.size( ) );
-            if ( result == 1 ) { // Yes 
-                sigPartLength = 0;
-            }
-            else if ( result == 0 ) { // No
-                // Print the signature we have so far, even though its not unique
-                auto signatureString = GenerateSignatureString( signature );
-                msg( "NOT UNIQUE Signature for %I64X: %s\n", ea, signatureString.c_str( ) );
-                break;
-            }
-            else { // Cancel
-                break;
+        if ( sigPartLength > maxSignatureLength ) {
+            if ( askLongerSignature ) {
+                auto result = ask_yn( 1, "Signature is already at %llu bytes. Continue?", signature.size( ) );
+                if ( result == 1 ) { // Yes 
+                    sigPartLength = 0;
+                }
+                else if ( result == 0 ) { // No
+                    // Print the signature we have so far, even though its not unique
+                    auto signatureString = GenerateSignatureString( signature );
+                    msg( "NOT UNIQUE Signature for %I64X: %s\n", ea, signatureString.c_str( ) );
+                    break;
+                }
+                else { // Cancel
+                    break;
+                }
+            } else {
+                return std::nullopt;
             }
         }
         sigPartLength += iCurrentInstructionLength;
@@ -228,18 +232,6 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands 
     return std::nullopt;
 }
 
-// Plugin specific definitions
-struct plugin_ctx_t : public plugmod_t {
-    ~plugin_ctx_t( )
-    {
-    }
-    virtual bool idaapi run( size_t ) override;
-};
-
-static plugmod_t *idaapi init( ) {
-    return new plugin_ctx_t;
-}
-
 std::string FormatSignature( Signature &signature, ea_t ea, SignatureType type ) {
     std::string signatureStr;
     switch ( type ) {
@@ -257,6 +249,18 @@ std::string FormatSignature( Signature &signature, ea_t ea, SignatureType type )
         break;
     }
     return signatureStr;
+}
+
+// Plugin specific definitions
+struct plugin_ctx_t : public plugmod_t {
+    ~plugin_ctx_t( )
+    {
+    }
+    virtual bool idaapi run( size_t ) override;
+};
+
+static plugmod_t *idaapi init( ) {
+    return new plugin_ctx_t;
 }
 
 bool idaapi plugin_ctx_t::run( size_t ) {
@@ -307,7 +311,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
                     continue;
                 }
 
-                auto signature = GenerateSignatureForEA( xref.from, wildcardForOperand );
+                auto signature = GenerateSignatureForEA( xref.from, wildcardForOperand, 250, false );
                 if ( !signature.has_value( ) ) {
                     continue;
                 }
