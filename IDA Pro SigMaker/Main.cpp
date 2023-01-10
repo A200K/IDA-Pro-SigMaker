@@ -1,59 +1,88 @@
-#include <Windows.h>
-#include <optional>
-#include <string>
-#include <sstream>
-#include <format>
-#include <vector>
+#include "Main.h"
 
-#include <ida.hpp>
-#include <idp.hpp>
-#include <loader.hpp>
-#include <search.hpp>
+bool IS_ARM = false;
 
-// Signature types and structures
-enum class SignatureType : uint32_t {
-    IDA = 0,
-    x64Dbg,
-    Signature_Mask,
-    SignatureByteArray_Bitmask
-};
-
-typedef struct {
-    unsigned char m_Byte;
-    bool m_IsWildcard;
-} SignatureByte;
-
-typedef std::vector<SignatureByte> Signature;
-
-void AddByteToSignature( Signature &signature, ea_t ulAddress, bool bWildcard ) {
+void AddByteToSignature( Signature &signature, ea_t address, bool wildcard ) {
     SignatureByte byte = {};
-    byte.m_IsWildcard = bWildcard;
-    byte.m_Byte = get_byte( ulAddress );
+    byte.isWildcard = wildcard;
+    byte.value = get_byte( address );
     signature.push_back( byte );
 }
 
-void AddBytesToSignature( Signature &signature, ea_t ulAddress, size_t ulSize, bool bWildcards ) {
+void AddBytesToSignature( Signature &signature, ea_t address, size_t ulSize, bool wildcard ) {
     for ( size_t i = 0; i < ulSize; i++ ) {
-        AddByteToSignature( signature, ulAddress + i, bWildcards );
+        AddByteToSignature( signature, address + i, wildcard );
     }
 }
 
-bool GetOperandOffset( const insn_t &instruction, char *pOperandOffset ) {
+bool GetOperandOffsetARM( const insn_t &instruction, uint8_t *operandOffset, uint8_t *operandLength ) {
+
+    // Iterate all operands
     for ( int i = 0; i < UA_MAXOP; i++ ) {
-        if ( instruction.ops[i].offb > 0 ) {
-            *pOperandOffset = instruction.ops[i].offb;
-            return true;
+        auto &op = instruction.ops[i];
+
+        // For ARM, we have to filter a bit though, only wildcard those operand types
+        switch ( op.type ) {
+        case o_mem:
+        case o_far:
+        case o_near:
+        case o_phrase:
+        case o_displ:
+        case o_imm:
+            break;
+        default:
+            continue;
         }
+
+        *operandOffset = op.offb;
+
+        // This is somewhat of a hack because IDA api does not provide more info 
+        // I always assume the operand is 3 bytes long with 1 byte operator
+        if ( instruction.size == 4 ) {
+            *operandLength = 3;
+        }
+        // I saw some ADRL instruction having 8 bytes
+        if ( instruction.size == 8 ) {
+            *operandLength = 7;
+        }
+        return true;
     }
     return false;
 }
 
-bool IsSignatureUnique( const std::string &signature ) {
+bool GetOperand( const insn_t &instruction, uint8_t *operandOffset, uint8_t *operandLength ) {
+
+    // Handle ARM
+    if ( IS_ARM ) {
+        return GetOperandOffsetARM( instruction, operandOffset, operandLength );
+    }
+
+    // Handle metapc x86/64
+
+    // Iterate all operands
+    for ( int i = 0; i < UA_MAXOP; i++ ) {
+        auto &op = instruction.ops[i];
+        // Skip if we have no operand
+        if ( op.type == o_void ) {
+            continue;
+        }
+        // offb = 0 means unknown
+        if ( op.offb == 0 ) {
+            continue;
+        }
+        *operandOffset = op.offb;
+        *operandLength = instruction.size - op.offb;
+        return true;
+    }
+    return false;
+}
+
+bool IsSignatureUnique( const std::string_view &signature ) {
     auto ulLastOccurence = inf.min_ea;
 
     // Convert signature string to searchable struct
     compiled_binpat_vec_t binaryPattern;
-    parse_binpat_str( &binaryPattern, inf.min_ea, signature.c_str( ), 16 );
+    parse_binpat_str( &binaryPattern, inf.min_ea, signature.data( ), 16 );
 
     // Search for occurences
     auto ulOccurence = bin_search2( ulLastOccurence, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD );
@@ -77,7 +106,7 @@ bool IsSignatureUnique( const std::string &signature ) {
 void TrimSignature( Signature &signature ) {
     auto ri = signature.rbegin( );
     while ( ri != signature.rend( ) ) {
-        if ( ri->m_IsWildcard == true ) {
+        if ( ri->isWildcard == true ) {
             ri = decltype( ri )( signature.erase( std::next( ri ).base( ) ) );
         }
         else {
@@ -87,15 +116,15 @@ void TrimSignature( Signature &signature ) {
 }
 
 // Signature to string 
-std::string GenerateSignatureString( Signature &signature, bool doubleQM = false ) {
+std::string GenerateSignatureString( const Signature &signature, bool doubleQM = false ) {
     std::ostringstream result;
     // Build hex pattern
     for ( const auto &byte : signature ) {
-        if ( byte.m_IsWildcard ) {
+        if ( byte.isWildcard ) {
             result << ( doubleQM ? "??" : "?" );
         }
         else {
-            result << std::format( "{:02X}", byte.m_Byte );
+            result << std::format( "{:02X}", byte.value );
         }
         result << " ";
     }
@@ -106,25 +135,25 @@ std::string GenerateSignatureString( Signature &signature, bool doubleQM = false
     return str;
 }
 
-std::string GenerateCodeSignatureString( Signature &signature ) {
+std::string GenerateCodeSignatureString( const Signature &signature ) {
     std::ostringstream pattern;
     std::ostringstream mask;
     // Build hex pattern
     for ( const auto &byte : signature ) {
-        pattern << "\\x" << std::format( "{:02X}", ( byte.m_IsWildcard ? 0 : byte.m_Byte ) );
-        mask << ( byte.m_IsWildcard ? "?" : "x" );
+        pattern << "\\x" << std::format( "{:02X}", ( byte.isWildcard ? 0 : byte.value ) );
+        mask << ( byte.isWildcard ? "?" : "x" );
     }
     auto str = pattern.str( ) + " " + mask.str( );
     return str;
 }
 
-std::string GenerateByteArrayWithBitMaskSignatureString( Signature &signature ) {
+std::string GenerateByteArrayWithBitMaskSignatureString( const Signature &signature ) {
     std::ostringstream pattern;
     std::ostringstream mask;
     // Build hex pattern
     for ( const auto &byte : signature ) {
-        pattern << "0x" << std::format( "{:02X}", ( byte.m_IsWildcard ? 0 : byte.m_Byte ) ) << ", ";
-        mask << ( byte.m_IsWildcard ? "0" : "1" );
+        pattern << "0x" << std::format( "{:02X}", ( byte.isWildcard ? 0 : byte.value ) ) << ", ";
+        mask << ( byte.isWildcard ? "0" : "1" );
     }
     auto patternStr = pattern.str( );
     auto maskStr = mask.str( );
@@ -142,23 +171,34 @@ std::string GenerateByteArrayWithBitMaskSignatureString( Signature &signature ) 
     return str;
 }
 
-bool SetClipboard( const std::string &text ) {
+bool SetClipboard( const std::string_view &text ) {
     bool result = false;
-    if ( text.empty( ) )
+    if ( text.empty( ) ) {
         return result;
-
-    if ( OpenClipboard( NULL ) ) {
-        auto hTextMem = GlobalAlloc( GMEM_MOVEABLE, text.size( ) + 1 );
-        if ( hTextMem ) {
-            auto pTextMem = reinterpret_cast< char * >( GlobalLock( hTextMem ) );
-            if ( pTextMem ) {
-                memcpy( pTextMem, text.c_str( ), text.size( ) );
-                GlobalUnlock( hTextMem );
-                result = SetClipboardData( CF_TEXT, hTextMem ) != NULL;
-            }
-        }
-        CloseClipboard( );
     }
+        
+    if ( OpenClipboard( NULL ) == false ) {
+        return result;
+    }
+
+    auto memoryHandle = GlobalAlloc( GMEM_MOVEABLE, text.size( ) + 1 );
+    if ( memoryHandle == nullptr ) {
+        CloseClipboard( );
+        return result;
+    }
+
+    auto textMem = reinterpret_cast< char * >( GlobalLock( memoryHandle ) );
+    if ( textMem == nullptr ) {
+        GlobalFree( memoryHandle );
+        CloseClipboard( );
+        return result;
+    }
+
+    memcpy( textMem, text.data( ), text.size( ) );
+    GlobalUnlock( memoryHandle );
+    result = SetClipboardData( CF_TEXT, memoryHandle ) != NULL;
+    GlobalFree( memoryHandle );
+    CloseClipboard( );
     return result;
 }
 
@@ -181,7 +221,14 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
         insn_t instruction;
         auto iCurrentInstructionLength = decode_insn( &instruction, ulCurrentAddress );
         if ( iCurrentInstructionLength <= 0 ) {
-            msg( "Can't decode @ %I64X, is this actually code?\n", ulCurrentAddress );
+            if ( signature.empty( ) ) {
+                msg( "Can't decode @ %I64X, is this actually code?\n", ulCurrentAddress );
+                break;
+            }
+
+            msg( "Signature reached end of function @ %I64X\n", ulCurrentAddress );
+            auto signatureString = GenerateSignatureString( signature );
+            msg( "NOT UNIQUE Signature for %I64X: %s\n", ea, signatureString.c_str( ) );
             break;
         }
 
@@ -207,12 +254,16 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
         }
         sigPartLength += iCurrentInstructionLength;
 
-        char ulOperandOffset = 0;
-        if ( wildcardOperands && GetOperandOffset( instruction, &ulOperandOffset ) && ulOperandOffset > 0 ) {
+        uint8_t operandOffset = 0, operandLength = 0;
+        if ( wildcardOperands && GetOperand( instruction, &operandOffset, &operandLength ) && operandLength > 0 ) {
             // Add opcodes
-            AddBytesToSignature( signature, ulCurrentAddress, ulOperandOffset, false );
-            // Wildcards for operand shit
-            AddBytesToSignature( signature, ulCurrentAddress + ulOperandOffset, iCurrentInstructionLength - ulOperandOffset, true );
+            AddBytesToSignature( signature, ulCurrentAddress, operandOffset, false );
+            // Wildcards for operands
+            AddBytesToSignature( signature, ulCurrentAddress + operandOffset, operandLength, true );
+            // If the operand is on the "left side", add the operator from the "right side"
+            if ( operandOffset == 0 ) {
+                AddBytesToSignature( signature, ulCurrentAddress + operandLength, iCurrentInstructionLength - operandLength, false );
+            }
         }
         else {
             // No operand, add all bytes
@@ -232,7 +283,7 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
     return std::nullopt;
 }
 
-std::string FormatSignature( Signature &signature, ea_t ea, SignatureType type ) {
+std::string FormatSignature( const Signature &signature, SignatureType type ) {
     std::string signatureStr;
     switch ( type ) {
     case SignatureType::IDA:
@@ -251,48 +302,48 @@ std::string FormatSignature( Signature &signature, ea_t ea, SignatureType type )
     return signatureStr;
 }
 
-// Plugin specific definitions
-struct plugin_ctx_t : public plugmod_t {
-    ~plugin_ctx_t( )
-    {
-    }
-    virtual bool idaapi run( size_t ) override;
-};
-
-static plugmod_t *idaapi init( ) {
-    return new plugin_ctx_t;
+const bool IsARM( ) {
+    return std::string_view( "ARM" ) == inf.procname;
 }
 
 bool idaapi plugin_ctx_t::run( size_t ) {
+
+    // Check what processor we have
+    if ( IsARM( ) ) {
+        IS_ARM = true;
+    }
+
+    // Show dialog
     const char format[] =
         "STARTITEM 0\n"                                                 // TabStop
         "Signature Maker\n"                                             // Title
 
         "Select action:\n"                                              // Title
         "<Create Signature for current code address:R>\n"               // Radio Button 0
-        "<Find shortest XREF Signature for current data or code address:R>>\n"		// Radio Button 1
+        "<Find shortest XREF Signature for current data or code address:R>\n"		// Radio Button 1
+        "<Copy selected code:R>>\n"                                     // Radio Button 2
 
         "Output format:\n"                                              // Title
         "<IDA Signature:R>\n"				                            // Radio Button 0
         "<x64Dbg Signature:R>\n"			                            // Radio Button 1
-        "<C Signature + String mask:R>\n"			                            // Radio Button 2
+        "<C Signature + String mask:R>\n"			                    // Radio Button 2
         "<C Byte Array Signature + Bitmask:R>>\n"			            // Radio Button 3
 
         "Options:\n"                                                    // Title
         "<Wildcards for operands:C>>\n\n";                              // Checkbox Button
-
+    
     static short action = 0;
     static short outputFormat = 0;
-    static short wildcardForOperand = 1;
-    if ( ask_form( format, &action, &outputFormat, &wildcardForOperand ) ) {
+    static short wildcardOperands = 1;
+    if ( ask_form( format, &action, &outputFormat, &wildcardOperands ) ) {
         switch ( action ) {
         case 0:
         {
             // Find unique signature for current address
             auto ea = get_screen_ea( );
-            auto signature = GenerateSignatureForEA( ea, wildcardForOperand );
+            auto signature = GenerateSignatureForEA( ea, wildcardOperands );
             if ( signature.has_value( ) ) {
-                auto signatureStr = FormatSignature( signature.value( ), ea, static_cast< SignatureType >( outputFormat ) );
+                auto signatureStr = FormatSignature( signature.value( ), static_cast< SignatureType >( outputFormat ) );
                 msg( "Signature for %I64X: %s\n", ea, signatureStr.c_str( ) );
                 SetClipboard( signatureStr );
             }
@@ -311,7 +362,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
                     continue;
                 }
 
-                auto signature = GenerateSignatureForEA( xref.from, wildcardForOperand, 250, false );
+                auto signature = GenerateSignatureForEA( xref.from, wildcardOperands, 250, false );
                 if ( !signature.has_value( ) ) {
                     continue;
                 }
@@ -332,7 +383,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
             msg( "Top %llu Signatures out of %llu xrefs:\n", topLength, xrefSignatures.size( ) );
             for ( int i = 0; i < topLength; i++ ) {
                 auto signature = xrefSignatures[i];
-                auto signatureStr = FormatSignature( signature, ea, static_cast< SignatureType >( outputFormat ) );
+                auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
                 msg( "XREF Signature for %I64X #%i: %s\n", ea, i + 1, signatureStr.c_str( ) );
 
                 // Copy first signature only
@@ -342,22 +393,27 @@ bool idaapi plugin_ctx_t::run( size_t ) {
             }
             break;
         }
+        case 2:
+        {
+            ea_t start, end;
+            if ( read_range_selection( get_current_viewer( ), &start, &end ) ) {
+                auto selectionSize = end - start;
+                if ( selectionSize > 0 ) {
+                    Signature signature;
+                    AddBytesToSignature( signature, start, selectionSize, false );
+                    auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
+                    msg( "Code for %I64X-%I64X: %s\n", start, end, signatureStr.c_str( ) );
+                    SetClipboard( signatureStr );
+                }
+                else {
+                    msg( "Code selection %I64X-%I64X is too small!\n", start, end );
+                }
+            }
+            break;
+        }
         default:
             break;
         }
-
     }
     return true;
 }
-
-plugin_t PLUGIN = {
-    IDP_INTERFACE_VERSION,
-    PLUGIN_MULTI,
-    init,
-    nullptr,
-    nullptr,
-    "Signature Maker for IDA Pro by A200K",
-    "Select location in disassembly and press CTRL+ALT+S to open menu",
-    "Signature Maker",
-    "Ctrl-Alt-S"
-};
