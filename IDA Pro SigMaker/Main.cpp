@@ -77,7 +77,7 @@ bool GetOperand( const insn_t &instruction, uint8_t *operandOffset, uint8_t *ope
     return false;
 }
 
-bool IsSignatureUnique( const std::string_view &signature ) {
+bool IsSignatureUnique( std::string_view signature ) {
     auto ulLastOccurence = inf.min_ea;
 
     // Convert signature string to searchable struct
@@ -108,8 +108,7 @@ void TrimSignature( Signature &signature ) {
     while ( ri != signature.rend( ) ) {
         if ( ri->isWildcard == true ) {
             ri = decltype( ri )( signature.erase( std::next( ri ).base( ) ) );
-        }
-        else {
+        } else {
             break;
         }
     }
@@ -122,8 +121,7 @@ std::string GenerateSignatureString( const Signature &signature, bool doubleQM =
     for ( const auto &byte : signature ) {
         if ( byte.isWildcard ) {
             result << ( doubleQM ? "??" : "?" );
-        }
-        else {
+        } else {
             result << std::format( "{:02X}", byte.value );
         }
         result << " ";
@@ -171,12 +169,12 @@ std::string GenerateByteArrayWithBitMaskSignatureString( const Signature &signat
     return str;
 }
 
-bool SetClipboard( const std::string_view &text ) {
+bool SetClipboard( std::string_view text ) {
     bool result = false;
     if ( text.empty( ) ) {
         return result;
     }
-        
+
     if ( OpenClipboard( NULL ) == false ) {
         return result;
     }
@@ -238,14 +236,12 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
                 auto result = ask_yn( 1, "Signature is already at %llu bytes. Continue?", signature.size( ) );
                 if ( result == 1 ) { // Yes 
                     sigPartLength = 0;
-                }
-                else if ( result == 0 ) { // No
+                } else if ( result == 0 ) { // No
                     // Print the signature we have so far, even though its not unique
                     auto signatureString = GenerateSignatureString( signature );
                     msg( "NOT UNIQUE Signature for %I64X: %s\n", ea, signatureString.c_str( ) );
                     break;
-                }
-                else { // Cancel
+                } else { // Cancel
                     break;
                 }
             } else {
@@ -264,8 +260,7 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
             if ( operandOffset == 0 ) {
                 AddBytesToSignature( signature, ulCurrentAddress + operandLength, iCurrentInstructionLength - operandLength, false );
             }
-        }
-        else {
+        } else {
             // No operand, add all bytes
             AddBytesToSignature( signature, ulCurrentAddress, iCurrentInstructionLength, false );
         }
@@ -331,7 +326,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
 
         "Options:\n"                                                    // Title
         "<Wildcards for operands:C>>\n\n";                              // Checkbox Button
-    
+
     static short action = 0;
     static short outputFormat = 0;
     static short wildcardOperands = 1;
@@ -404,8 +399,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
                     auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
                     msg( "Code for %I64X-%I64X: %s\n", start, end, signatureStr.c_str( ) );
                     SetClipboard( signatureStr );
-                }
-                else {
+                } else {
                     msg( "Code selection %I64X-%I64X is too small!\n", start, end );
                 }
             }
