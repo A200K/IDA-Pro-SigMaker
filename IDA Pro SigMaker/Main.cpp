@@ -2,24 +2,24 @@
 
 bool IS_ARM = false;
 
-void AddByteToSignature( Signature &signature, ea_t address, bool wildcard ) {
+void AddByteToSignature( Signature& signature, ea_t address, bool wildcard ) {
     SignatureByte byte = {};
     byte.isWildcard = wildcard;
     byte.value = get_byte( address );
     signature.push_back( byte );
 }
 
-void AddBytesToSignature( Signature &signature, ea_t address, size_t ulSize, bool wildcard ) {
+void AddBytesToSignature( Signature& signature, ea_t address, size_t ulSize, bool wildcard ) {
     for( size_t i = 0; i < ulSize; i++ ) {
         AddByteToSignature( signature, address + i, wildcard );
     }
 }
 
-bool GetOperandOffsetARM( const insn_t &instruction, uint8_t *operandOffset, uint8_t *operandLength ) {
+bool GetOperandOffsetARM( const insn_t& instruction, uint8_t* operandOffset, uint8_t* operandLength ) {
 
     // Iterate all operands
     for( int i = 0; i < UA_MAXOP; i++ ) {
-        auto &op = instruction.ops[i];
+        auto& op = instruction.ops[i];
 
         // For ARM, we have to filter a bit though, only wildcard those operand types
         switch( op.type ) {
@@ -50,7 +50,7 @@ bool GetOperandOffsetARM( const insn_t &instruction, uint8_t *operandOffset, uin
     return false;
 }
 
-bool GetOperand( const insn_t &instruction, uint8_t *operandOffset, uint8_t *operandLength ) {
+bool GetOperand( const insn_t& instruction, uint8_t* operandOffset, uint8_t* operandLength ) {
 
     // Handle ARM
     if( IS_ARM ) {
@@ -61,7 +61,7 @@ bool GetOperand( const insn_t &instruction, uint8_t *operandOffset, uint8_t *ope
 
     // Iterate all operands
     for( int i = 0; i < UA_MAXOP; i++ ) {
-        auto &op = instruction.ops[i];
+        auto& op = instruction.ops[i];
         // Skip if we have no operand
         if( op.type == o_void ) {
             continue;
@@ -78,32 +78,32 @@ bool GetOperand( const insn_t &instruction, uint8_t *operandOffset, uint8_t *ope
 }
 
 bool IsSignatureUnique( std::string_view signature ) {
-    auto ulLastOccurence = inf.min_ea;
+    auto lastOccurence = inf.min_ea;
 
     // Convert signature string to searchable struct
     compiled_binpat_vec_t binaryPattern;
     parse_binpat_str( &binaryPattern, inf.min_ea, signature.data(), 16 );
 
     // Search for occurences
-    auto ulOccurence = bin_search2( ulLastOccurence, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD );
+    auto occurence = bin_search2( lastOccurence, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD );
 
     // Signature not found
-    if( ulOccurence == BADADDR )
+    if( occurence == BADADDR )
         return false;
 
     // Check if it matches anywhere else
-    ulLastOccurence = ulOccurence + 1;
-    ulOccurence = bin_search2( ulLastOccurence, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD );
+    lastOccurence = occurence + 1;
+    occurence = bin_search2( lastOccurence, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD );
 
     // Signature matched only once
-    if( ulOccurence == BADADDR )
+    if( occurence == BADADDR )
         return true;
 
     return false;
 }
 
 // Trim wildcards at end
-void TrimSignature( Signature &signature ) {
+void TrimSignature( Signature& signature ) {
     auto ri = signature.rbegin();
     while( ri != signature.rend() ) {
         if( ri->isWildcard == true ) {
@@ -116,10 +116,10 @@ void TrimSignature( Signature &signature ) {
 }
 
 // Signature to string 
-std::string GenerateSignatureString( const Signature &signature, bool doubleQM = false ) {
+std::string GenerateSignatureString( const Signature& signature, bool doubleQM = false ) {
     std::ostringstream result;
     // Build hex pattern
-    for( const auto &byte : signature ) {
+    for( const auto& byte : signature ) {
         if( byte.isWildcard ) {
             result << ( doubleQM ? "??" : "?" );
         }
@@ -135,11 +135,11 @@ std::string GenerateSignatureString( const Signature &signature, bool doubleQM =
     return str;
 }
 
-std::string GenerateCodeSignatureString( const Signature &signature ) {
+std::string GenerateCodeSignatureString( const Signature& signature ) {
     std::ostringstream pattern;
     std::ostringstream mask;
     // Build hex pattern
-    for( const auto &byte : signature ) {
+    for( const auto& byte : signature ) {
         pattern << "\\x" << std::format( "{:02X}", ( byte.isWildcard ? 0 : byte.value ) );
         mask << ( byte.isWildcard ? "?" : "x" );
     }
@@ -147,11 +147,11 @@ std::string GenerateCodeSignatureString( const Signature &signature ) {
     return str;
 }
 
-std::string GenerateByteArrayWithBitMaskSignatureString( const Signature &signature ) {
+std::string GenerateByteArrayWithBitMaskSignatureString( const Signature& signature ) {
     std::ostringstream pattern;
     std::ostringstream mask;
     // Build hex pattern
-    for( const auto &byte : signature ) {
+    for( const auto& byte : signature ) {
         pattern << "0x" << std::format( "{:02X}", ( byte.isWildcard ? 0 : byte.value ) ) << ", ";
         mask << ( byte.isWildcard ? "0" : "1" );
     }
@@ -172,16 +172,15 @@ std::string GenerateByteArrayWithBitMaskSignatureString( const Signature &signat
 }
 
 bool SetClipboard( std::string_view text ) {
-    bool result = false;
     if( text.empty() ) {
-        return result;
+        msg( "[Error] Text empty" );
+        return false;
     }
 
     if( OpenClipboard( NULL ) == false ) {
         msg( "[Error] Failed to open clipboard" );
-        return result;
+        return false;
     }
-
     if( EmptyClipboard() == false ) {
         msg( "[Error] Failed to empty clipboard" );
     }
@@ -190,27 +189,29 @@ bool SetClipboard( std::string_view text ) {
     if( memoryHandle == nullptr ) {
         msg( "[Error] Failed to allocate clipboard memory" );
         CloseClipboard();
-        return result;
+        return false;
     }
 
-    auto textMem = reinterpret_cast< char * >( GlobalLock( memoryHandle ) );
+    auto textMem = reinterpret_cast< char* >( GlobalLock( memoryHandle ) );
     if( textMem == nullptr ) {
         msg( "[Error] Failed to lock clipboard memory" );
         GlobalFree( memoryHandle );
         CloseClipboard();
-        return result;
+        return false;
     }
 
     memcpy( textMem, text.data(), text.size() );
     GlobalUnlock( memoryHandle );
-    result = SetClipboardData( CF_TEXT, memoryHandle ) != NULL;
+    auto handle = SetClipboardData( CF_TEXT, memoryHandle );
     GlobalFree( memoryHandle );
     CloseClipboard();
 
-    if( result ) {
+    if( handle == nullptr ) {
         msg( "[Error] SetClipboardData failed" );
+        return false;
     }
-    return result;
+
+    return true;
 }
 
 std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands, size_t maxSignatureLength = 1000, bool askLongerSignature = true ) {
@@ -295,7 +296,7 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
     return std::nullopt;
 }
 
-std::string FormatSignature( const Signature &signature, SignatureType type ) {
+std::string FormatSignature( const Signature& signature, SignatureType type ) {
     std::string signatureStr;
     switch( type ) {
     case SignatureType::IDA:
@@ -338,8 +339,8 @@ bool idaapi plugin_ctx_t::run( size_t ) {
         "Output format:\n"                                              // Title
         "<IDA Signature:R>\n"				                            // Radio Button 0
         "<x64Dbg Signature:R>\n"			                            // Radio Button 1
-        "<C Signature + String mask:R>\n"			                    // Radio Button 2
-        "<C Byte Array Signature + Bitmask:R>>\n"			            // Radio Button 3
+        "<C Byte Array Signature + String mask:R>\n"			                    // Radio Button 2
+        "<C Raw Bytes Signature + Bitmask:R>>\n"			            // Radio Button 3
 
         "Options:\n"                                                    // Title
         "<Wildcards for operands:C>>\n\n";                              // Checkbox Button
@@ -357,7 +358,9 @@ bool idaapi plugin_ctx_t::run( size_t ) {
             if( signature.has_value() ) {
                 auto signatureStr = FormatSignature( signature.value(), static_cast< SignatureType >( outputFormat ) );
                 msg( "Signature for %I64X: %s\n", ea, signatureStr.c_str() );
-                SetClipboard( signatureStr );
+                if( !SetClipboard( signatureStr ) ) {
+                    msg( "Failed to copy to clipboard\n" );
+                }
             }
             break;
         }
@@ -383,7 +386,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
             }
 
             // Sort signatures by length
-            std::sort( xrefSignatures.begin(), xrefSignatures.end(), []( const Signature &a, const Signature &b ) -> bool { return a.size() < b.size(); } );
+            std::sort( xrefSignatures.begin(), xrefSignatures.end(), []( const Signature& a, const Signature& b ) -> bool { return a.size() < b.size(); } );
 
             if( xrefSignatures.empty() ) {
                 msg( "No XREFs have been found for your address\n" );
@@ -400,7 +403,9 @@ bool idaapi plugin_ctx_t::run( size_t ) {
 
                 // Copy first signature only
                 if( i == 0 ) {
-                    SetClipboard( signatureStr );
+                    if( !SetClipboard( signatureStr ) ) {
+                        msg( "Failed to copy to clipboard\n" );
+                    }
                 }
             }
             break;
@@ -415,7 +420,9 @@ bool idaapi plugin_ctx_t::run( size_t ) {
                     AddBytesToSignature( signature, start, selectionSize, false );
                     auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
                     msg( "Code for %I64X-%I64X: %s\n", start, end, signatureStr.c_str() );
-                    SetClipboard( signatureStr );
+                    if( !SetClipboard( signatureStr ) ) {
+                        msg( "Failed to copy to clipboard\n" );
+                    }
                 }
                 else {
                     msg( "Code selection %I64X-%I64X is too small!\n", start, end );
