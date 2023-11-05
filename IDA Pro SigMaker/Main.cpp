@@ -3,7 +3,7 @@
 bool IS_ARM = false;
 
 void AddByteToSignature( Signature& signature, ea_t address, bool wildcard ) {
-    SignatureByte byte = {};
+    SignatureByte byte{};
     byte.isWildcard = wildcard;
     byte.value = get_byte( address );
     signature.push_back( byte );
@@ -214,7 +214,7 @@ bool SetClipboard( std::string_view text ) {
     return true;
 }
 
-std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands, size_t maxSignatureLength = 1000, bool askLongerSignature = true ) {
+std::optional<Signature> GenerateSignatureForEA( const ea_t ea, bool wildcardOperands, size_t maxSignatureLength = 1000, bool askLongerSignature = true ) {
     if( ea == BADADDR ) {
         msg( "Invalid address\n" );
         return std::nullopt;
@@ -228,17 +228,17 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
     Signature signature;
     uint32_t sigPartLength = 0;
 
-    auto ulCurrentAddress = ea;
+    auto currentAddress = ea;
     while( true ) {
         insn_t instruction;
-        auto iCurrentInstructionLength = decode_insn( &instruction, ulCurrentAddress );
-        if( iCurrentInstructionLength <= 0 ) {
+        auto currentInstructionLength = decode_insn( &instruction, currentAddress );
+        if( currentInstructionLength <= 0 ) {
             if( signature.empty() ) {
-                msg( "Can't decode @ %I64X, is this actually code?\n", ulCurrentAddress );
+                msg( "Can't decode @ %I64X, is this actually code?\n", currentAddress );
                 break;
             }
 
-            msg( "Signature reached end of function @ %I64X\n", ulCurrentAddress );
+            msg( "Signature reached end of function @ %I64X\n", currentAddress );
             auto signatureString = GenerateSignatureString( signature );
             msg( "NOT UNIQUE Signature for %I64X: %s\n", ea, signatureString.c_str() );
             break;
@@ -265,22 +265,22 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
                 return std::nullopt;
             }
         }
-        sigPartLength += iCurrentInstructionLength;
+        sigPartLength += currentInstructionLength;
 
         uint8_t operandOffset = 0, operandLength = 0;
         if( wildcardOperands && GetOperand( instruction, &operandOffset, &operandLength ) && operandLength > 0 ) {
             // Add opcodes
-            AddBytesToSignature( signature, ulCurrentAddress, operandOffset, false );
+            AddBytesToSignature( signature, currentAddress, operandOffset, false );
             // Wildcards for operands
-            AddBytesToSignature( signature, ulCurrentAddress + operandOffset, operandLength, true );
+            AddBytesToSignature( signature, currentAddress + operandOffset, operandLength, true );
             // If the operand is on the "left side", add the operator from the "right side"
             if( operandOffset == 0 ) {
-                AddBytesToSignature( signature, ulCurrentAddress + operandLength, iCurrentInstructionLength - operandLength, false );
+                AddBytesToSignature( signature, currentAddress + operandLength, currentInstructionLength - operandLength, false );
             }
         }
         else {
             // No operand, add all bytes
-            AddBytesToSignature( signature, ulCurrentAddress, iCurrentInstructionLength, false );
+            AddBytesToSignature( signature, currentAddress, currentInstructionLength, false );
         }
 
         auto currentSig = GenerateSignatureString( signature );
@@ -291,7 +291,7 @@ std::optional<Signature> GenerateSignatureForEA( ea_t ea, bool wildcardOperands,
             // Return the signature we generated
             return signature;
         }
-        ulCurrentAddress += iCurrentInstructionLength;
+        currentAddress += currentInstructionLength;
     }
     return std::nullopt;
 }
@@ -315,7 +315,7 @@ std::string FormatSignature( const Signature& signature, SignatureType type ) {
     return signatureStr;
 }
 
-const bool IsARM() {
+bool IsARM() {
     return std::string_view( "ARM" ) == inf.procname;
 }
 
@@ -353,23 +353,22 @@ bool idaapi plugin_ctx_t::run( size_t ) {
         case 0:
         {
             // Find unique signature for current address
-            auto ea = get_screen_ea();
+            const auto ea = get_screen_ea();
             auto signature = GenerateSignatureForEA( ea, wildcardOperands );
-            if( signature.has_value() ) {
-                auto signatureStr = FormatSignature( signature.value(), static_cast< SignatureType >( outputFormat ) );
-                msg( "Signature for %I64X: %s\n", ea, signatureStr.c_str() );
-                if( !SetClipboard( signatureStr ) ) {
-                    msg( "Failed to copy to clipboard\n" );
-                }
+            if( !signature.has_value() ) {
+                break;
             }
+            auto signatureStr = FormatSignature( signature.value(), static_cast< SignatureType >( outputFormat ) );
+            msg( "Signature for %I64X: %s\n", ea, signatureStr.c_str() );
+            SetClipboard( signatureStr );
             break;
         }
         case 1:
         {
             // Iterate XREFs and find shortest signature
-            auto ea = get_screen_ea();
-            std::vector<Signature> xrefSignatures;
-            xrefblk_t xref;
+            const auto ea = get_screen_ea();
+            std::vector<std::tuple<ea_t, Signature>> xrefSignatures;
+            xrefblk_t xref{};
             for( auto xref_ok = xref.first_to( ea, XREF_FAR ); xref_ok; xref_ok = xref.next_to() ) {
 
                 // Skip data refs, xref.iscode is not what we want though
@@ -382,30 +381,28 @@ bool idaapi plugin_ctx_t::run( size_t ) {
                     continue;
                 }
 
-                xrefSignatures.push_back( signature.value() );
+                xrefSignatures.push_back( std::make_pair( xref.from, signature.value() ) );
             }
 
             // Sort signatures by length
-            std::sort( xrefSignatures.begin(), xrefSignatures.end(), []( const Signature& a, const Signature& b ) -> bool { return a.size() < b.size(); } );
+            std::sort( xrefSignatures.begin(), xrefSignatures.end(), []( const auto& a, const auto& b ) -> bool { return std::get<1>( a ).size() < std::get<1>( b ).size(); } );
 
             if( xrefSignatures.empty() ) {
                 msg( "No XREFs have been found for your address\n" );
                 break;
             }
 
-            // Print top 3 Signatures
-            auto topLength = min( 3, xrefSignatures.size() );
-            msg( "Top %llu Signatures out of %llu xrefs:\n", topLength, xrefSignatures.size() );
+            // Print top 5 Signatures
+            auto topLength = std::min( 5llu, xrefSignatures.size() );
+            msg( "Top %llu Signatures out of %llu xrefs for %I64X:\n", topLength, xrefSignatures.size(), ea );
             for( int i = 0; i < topLength; i++ ) {
-                auto signature = xrefSignatures[i];
-                auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
-                msg( "XREF Signature for %I64X #%i: %s\n", ea, i + 1, signatureStr.c_str() );
+                auto [originAddress, signature] = xrefSignatures[i];
+                const auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
+                msg( "XREF Signature #%i @ %I64X: %s\n", i + 1, originAddress, signatureStr.c_str() );
 
                 // Copy first signature only
                 if( i == 0 ) {
-                    if( !SetClipboard( signatureStr ) ) {
-                        msg( "Failed to copy to clipboard\n" );
-                    }
+                    SetClipboard( signatureStr );
                 }
             }
             break;
@@ -420,9 +417,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
                     AddBytesToSignature( signature, start, selectionSize, false );
                     auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
                     msg( "Code for %I64X-%I64X: %s\n", start, end, signatureStr.c_str() );
-                    if( !SetClipboard( signatureStr ) ) {
-                        msg( "Failed to copy to clipboard\n" );
-                    }
+                    SetClipboard( signatureStr );
                 }
                 else {
                     msg( "Code selection %I64X-%I64X is too small!\n", start, end );
