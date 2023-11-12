@@ -2,6 +2,10 @@
 
 bool IS_ARM = false;
 
+bool IsARM() {
+    return std::string_view( "ARM" ) == inf.procname;
+}
+
 void AddByteToSignature( Signature& signature, ea_t address, bool wildcard ) {
     SignatureByte byte{};
     byte.isWildcard = wildcard;
@@ -9,8 +13,9 @@ void AddByteToSignature( Signature& signature, ea_t address, bool wildcard ) {
     signature.push_back( byte );
 }
 
-void AddBytesToSignature( Signature& signature, ea_t address, size_t ulSize, bool wildcard ) {
-    for( size_t i = 0; i < ulSize; i++ ) {
+void AddBytesToSignature( Signature& signature, ea_t address, size_t count, bool wildcard ) {
+    signature.reserve( signature.size() + count );
+    for( size_t i = 0; i < count; i++ ) {
         AddByteToSignature( signature, address + i, wildcard );
     }
 }
@@ -78,41 +83,25 @@ bool GetOperand( const insn_t& instruction, uint8_t* operandOffset, uint8_t* ope
 }
 
 bool IsSignatureUnique( std::string_view signature ) {
-    auto lastOccurence = inf.min_ea;
-
     // Convert signature string to searchable struct
     compiled_binpat_vec_t binaryPattern;
     parse_binpat_str( &binaryPattern, inf.min_ea, signature.data(), 16 );
 
     // Search for occurences
+    auto lastOccurence = inf.min_ea;
     auto occurence = bin_search2( lastOccurence, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD );
 
     // Signature not found
-    if( occurence == BADADDR )
+    if( occurence == BADADDR ){
         return false;
+    }
 
     // Check if it matches anywhere else
     lastOccurence = occurence + 1;
     occurence = bin_search2( lastOccurence, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD );
 
     // Signature matched only once
-    if( occurence == BADADDR )
-        return true;
-
-    return false;
-}
-
-// Trim wildcards at end
-void TrimSignature( Signature& signature ) {
-    auto ri = signature.rbegin();
-    while( ri != signature.rend() ) {
-        if( ri->isWildcard == true ) {
-            ri = decltype( ri )( signature.erase( std::next( ri ).base() ) );
-        }
-        else {
-            break;
-        }
-    }
+    return occurence == BADADDR;
 }
 
 // Signature to string 
@@ -129,9 +118,10 @@ std::string GenerateSignatureString( const Signature& signature, bool doubleQM =
         result << " ";
     }
     auto str = result.str();
-    // Remove whitespace
-    if( !str.empty() )
+    // Remove whitespace at end
+    if( !str.empty() ){
         str.pop_back();
+    }
     return str;
 }
 
@@ -159,7 +149,7 @@ std::string GenerateByteArrayWithBitMaskSignatureString( const Signature& signat
     auto maskStr = mask.str();
 
     // Reverse bitmask
-    std::reverse( maskStr.begin(), maskStr.end() );
+    std::ranges::reverse( maskStr );
 
     // Remove separators
     if( !patternStr.empty() ) {
@@ -210,8 +200,13 @@ bool SetClipboard( std::string_view text ) {
         msg( "[Error] SetClipboardData failed" );
         return false;
     }
-
     return true;
+}
+
+// Trim wildcards at end
+void TrimSignature( Signature& signature ) {
+    auto it = std::find_if( signature.rbegin(), signature.rend(), []( const auto& sb ) { return !sb.isWildcard; } );
+    signature.erase( it.base(), signature.end() );
 }
 
 std::optional<Signature> GenerateSignatureForEA( const ea_t ea, bool wildcardOperands, size_t maxSignatureLength = 1000, bool askLongerSignature = true ) {
@@ -297,26 +292,83 @@ std::optional<Signature> GenerateSignatureForEA( const ea_t ea, bool wildcardOpe
 }
 
 std::string FormatSignature( const Signature& signature, SignatureType type ) {
-    std::string signatureStr;
     switch( type ) {
     case SignatureType::IDA:
-        signatureStr = GenerateSignatureString( signature );
-        break;
+        return GenerateSignatureString( signature );
     case SignatureType::x64Dbg:
-        signatureStr = GenerateSignatureString( signature, true );
-        break;
+        return GenerateSignatureString( signature, true );
     case SignatureType::Signature_Mask:
-        signatureStr = GenerateCodeSignatureString( signature );
-        break;
+        return GenerateCodeSignatureString( signature );
     case SignatureType::SignatureByteArray_Bitmask:
-        signatureStr = GenerateByteArrayWithBitMaskSignatureString( signature );
-        break;
+        return GenerateByteArrayWithBitMaskSignatureString( signature );
     }
-    return signatureStr;
+    return {};
 }
 
-bool IsARM() {
-    return std::string_view( "ARM" ) == inf.procname;
+void PrintSignatureForEA( const std::optional<Signature>& signature, ea_t ea, SignatureType sigType ) {
+    if( !signature.has_value() ) {
+        return;
+    }
+    const auto signatureStr = FormatSignature( signature.value(), sigType );
+    msg( "Signature for %I64X: %s\n", ea, signatureStr.c_str() );
+    SetClipboard( signatureStr );
+}
+
+void FindXRefs( ea_t ea, short wildcardOperands, std::vector<std::tuple<ea_t, Signature>>& xrefSignatures, size_t maxSignatureLength ) {
+    xrefblk_t xref{};
+    for( auto xref_ok = xref.first_to( ea, XREF_FAR ); xref_ok; xref_ok = xref.next_to() ) {
+
+        // Skip data refs, xref.iscode is not what we want though
+        if( !is_code( get_flags( xref.from ) ) ) {
+            continue;
+        }
+
+        auto signature = GenerateSignatureForEA( xref.from, wildcardOperands, maxSignatureLength, false );
+        if( !signature.has_value() ) {
+            continue;
+        }
+
+        xrefSignatures.push_back( std::make_pair( xref.from, signature.value() ) );
+    }
+
+    // Sort signatures by length
+    std::ranges::sort( xrefSignatures, []( const auto& a, const auto& b ) -> bool { return std::get<1>( a ).size() < std::get<1>( b ).size(); } );
+}
+
+void PrintXRefSignaturesForEA( ea_t ea, const std::vector<std::tuple<ea_t, Signature>>& xrefSignatures, SignatureType sigType, size_t topCount ) {
+    if( xrefSignatures.empty() ) {
+        msg( "No XREFs have been found for your address\n" );
+        return;
+    }
+
+    // Print top 5 Signatures
+    auto topLength = std::min( topCount, xrefSignatures.size() );
+    msg( "Top %llu Signatures out of %llu xrefs for %I64X:\n", topLength, xrefSignatures.size(), ea );
+    for( int i = 0; i < topLength; i++ ) {
+        auto [originAddress, signature] = xrefSignatures[i];
+        const auto signatureStr = FormatSignature( signature, sigType );
+        msg( "XREF Signature #%i @ %I64X: %s\n", i + 1, originAddress, signatureStr.c_str() );
+
+        // Copy first signature only
+        if( i == 0 ) {
+            SetClipboard( signatureStr );
+        }
+    }
+}
+
+void PrintSelectedCode( ea_t start, ea_t end, SignatureType sigType ) {
+    auto selectionSize = end - start;
+    if( selectionSize == 0 ) {
+        msg( "Code selection %I64X-%I64X is too small!\n", start, end );
+        return;
+    }
+
+    // Create signature from selection
+    Signature signature;
+    AddBytesToSignature( signature, start, selectionSize, false );
+    const auto signatureStr = FormatSignature( signature, sigType );
+    msg( "Code for %I64X-%I64X: %s\n", start, end, signatureStr.c_str() );
+    SetClipboard( signatureStr );
 }
 
 bool idaapi plugin_ctx_t::run( size_t ) {
@@ -328,39 +380,35 @@ bool idaapi plugin_ctx_t::run( size_t ) {
 
     // Show dialog
     const char format[] =
-        "STARTITEM 0\n"                                                 // TabStop
-        "Signature Maker\n"                                             // Title
+        "STARTITEM 0\n"                                                         // TabStop
+        "Signature Maker\n"                                                     // Title
 
-        "Select action:\n"                                              // Title
-        "<Create Signature for current code address:R>\n"               // Radio Button 0
-        "<Find shortest XREF Signature for current data or code address:R>\n"		// Radio Button 1
-        "<Copy selected code:R>>\n"                                     // Radio Button 2
+        "Select action:\n"                                                      // Title
+        "<Create Signature for current code address:R>\n"                       // Radio Button 0
+        "<Find shortest XREF Signature for current data or code address:R>\n"	// Radio Button 1
+        "<Copy selected code:R>>\n"                                             // Radio Button 2
 
-        "Output format:\n"                                              // Title
-        "<IDA Signature:R>\n"				                            // Radio Button 0
-        "<x64Dbg Signature:R>\n"			                            // Radio Button 1
-        "<C Byte Array Signature + String mask:R>\n"			                    // Radio Button 2
-        "<C Raw Bytes Signature + Bitmask:R>>\n"			            // Radio Button 3
+        "Output format:\n"                                                      // Title
+        "<IDA Signature:R>\n"				                                    // Radio Button 0
+        "<x64Dbg Signature:R>\n"			                                    // Radio Button 1
+        "<C Byte Array Signature + String mask:R>\n"			                // Radio Button 2
+        "<C Raw Bytes Signature + Bitmask:R>>\n"			                    // Radio Button 3
 
-        "Options:\n"                                                    // Title
-        "<Wildcards for operands:C>>\n\n";                              // Checkbox Button
+        "Options:\n"                                                            // Title
+        "<Wildcards for operands:C>>\n\n";                                      // Checkbox Button
 
     static short action = 0;
     static short outputFormat = 0;
     static short wildcardOperands = 1;
     if( ask_form( format, &action, &outputFormat, &wildcardOperands ) ) {
+        const auto sigType = static_cast< SignatureType >( outputFormat );
         switch( action ) {
         case 0:
         {
             // Find unique signature for current address
             const auto ea = get_screen_ea();
             auto signature = GenerateSignatureForEA( ea, wildcardOperands );
-            if( !signature.has_value() ) {
-                break;
-            }
-            auto signatureStr = FormatSignature( signature.value(), static_cast< SignatureType >( outputFormat ) );
-            msg( "Signature for %I64X: %s\n", ea, signatureStr.c_str() );
-            SetClipboard( signatureStr );
+            PrintSignatureForEA( signature, ea, sigType );
             break;
         }
         case 1:
@@ -368,60 +416,16 @@ bool idaapi plugin_ctx_t::run( size_t ) {
             // Iterate XREFs and find shortest signature
             const auto ea = get_screen_ea();
             std::vector<std::tuple<ea_t, Signature>> xrefSignatures;
-            xrefblk_t xref{};
-            for( auto xref_ok = xref.first_to( ea, XREF_FAR ); xref_ok; xref_ok = xref.next_to() ) {
-
-                // Skip data refs, xref.iscode is not what we want though
-                if( !is_code( get_flags( xref.from ) ) ) {
-                    continue;
-                }
-
-                auto signature = GenerateSignatureForEA( xref.from, wildcardOperands, 250, false );
-                if( !signature.has_value() ) {
-                    continue;
-                }
-
-                xrefSignatures.push_back( std::make_pair( xref.from, signature.value() ) );
-            }
-
-            // Sort signatures by length
-            std::sort( xrefSignatures.begin(), xrefSignatures.end(), []( const auto& a, const auto& b ) -> bool { return std::get<1>( a ).size() < std::get<1>( b ).size(); } );
-
-            if( xrefSignatures.empty() ) {
-                msg( "No XREFs have been found for your address\n" );
-                break;
-            }
-
-            // Print top 5 Signatures
-            auto topLength = std::min( 5llu, xrefSignatures.size() );
-            msg( "Top %llu Signatures out of %llu xrefs for %I64X:\n", topLength, xrefSignatures.size(), ea );
-            for( int i = 0; i < topLength; i++ ) {
-                auto [originAddress, signature] = xrefSignatures[i];
-                const auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
-                msg( "XREF Signature #%i @ %I64X: %s\n", i + 1, originAddress, signatureStr.c_str() );
-
-                // Copy first signature only
-                if( i == 0 ) {
-                    SetClipboard( signatureStr );
-                }
-            }
+            FindXRefs( ea, wildcardOperands, xrefSignatures, 250 );
+            PrintXRefSignaturesForEA( ea, xrefSignatures, sigType, 5 );
             break;
         }
         case 2:
         {
+            // Print selected code as signature
             ea_t start, end;
             if( read_range_selection( get_current_viewer(), &start, &end ) ) {
-                auto selectionSize = end - start;
-                if( selectionSize > 0 ) {
-                    Signature signature;
-                    AddBytesToSignature( signature, start, selectionSize, false );
-                    auto signatureStr = FormatSignature( signature, static_cast< SignatureType >( outputFormat ) );
-                    msg( "Code for %I64X-%I64X: %s\n", start, end, signatureStr.c_str() );
-                    SetClipboard( signatureStr );
-                }
-                else {
-                    msg( "Code selection %I64X-%I64X is too small!\n", start, end );
-                }
+                PrintSelectedCode( start, end, sigType );
             }
             break;
         }
