@@ -1,11 +1,12 @@
 #pragma once
 #define NOMINMAX
 #include <Windows.h>
-#include <optional>
+#include <expected>
 #include <string>
 #include <sstream>
 #include <format>
 #include <vector>
+#include <regex>
 
 #include "Plugin.h"
 
