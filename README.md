@@ -12,10 +12,10 @@ Drop into plugins folder of your IDA installation.
 ## Usage
 In disassembly view, select a line you want to generate a signature for, and press 
 **CTRL+ALT+S**
-![](https://i.imgur.com/et8zumy.png)
+![](https://i.imgur.com/b4MKkca.png)
 
 The generated signature will be printed to the output console, as well as copied to the clipboard:
-![](https://i.imgur.com/bYPiyvF.png)
+![](https://i.imgur.com/mTFbKce.png)
 
 ___
 
@@ -27,6 +27,22 @@ ___
 | C Raw Bytes Signature + Bitmask | 0xE8, 0x00, 0x00, 0x00, 0x00, 0x45, 0x33, 0xF6, 0x66, 0x44, 0x89, 0x34, 0x33  0b1111111100001 |
 
 ___
-
+### Finding XREFs
 Generating code Signatures by data or code xrefs and finding the shortest ones is also supported:
 ![](https://i.imgur.com/P0VRIFQ.png)
+
+___
+### Signature searching
+Searching for Signatures works for supported formats:
+
+![](https://i.imgur.com/lD4Zfwb.png)
+
+Just enter any string containing your Signature, it will automatically try to figure out what kind of Signature format is being used:
+
+![](https://i.imgur.com/oWMs7LN.png)
+
+Currently, all output formats you can generate are supported.
+
+Match(es) of your signature will be printed to console:
+
+![](https://i.imgur.com/Pe4REkX.png)
