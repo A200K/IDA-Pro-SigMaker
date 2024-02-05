@@ -436,7 +436,8 @@ static void SearchSignatureString( std::string input ) {
         // Remove braces in case you have makers in your IDA style signature 
         input = std::regex_replace( input, std::regex( R"([\)\(\[\]]+)" ), "" );
 
-        // Remove questionmarks and spaces at the end, and add one space for the following step
+        // Remove whitespace at beginning, questionmarks and spaces at the end, and add one space for the following step
+        input = std::regex_replace( input, std::regex( "^\\s+" ), "" );
         input = std::regex_replace( input, std::regex( "[? ]+$" ), "" ) + " ";
 
         // Replace double question marks with single ones to convert x64Dbg style to IDA style
