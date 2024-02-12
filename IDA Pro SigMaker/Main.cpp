@@ -210,7 +210,7 @@ static void TrimSignature( Signature& signature ) {
     signature.erase( it.base(), signature.end() );
 }
 
-static std::expected<Signature, std::string> GenerateSignatureForEA( const ea_t ea, bool wildcardOperands, size_t maxSignatureLength = 1000, bool askLongerSignature = true ) {
+static std::expected<Signature, std::string> GenerateUniqueSignatureForEA( const ea_t ea, bool wildcardOperands, size_t maxSignatureLength = 1000, bool askLongerSignature = true ) {
     if( ea == BADADDR ) {
         return std::unexpected( "Invalid address" );
     }
@@ -289,6 +289,67 @@ static std::expected<Signature, std::string> GenerateSignatureForEA( const ea_t 
     return std::unexpected( "Unknown" );
 }
 
+// Function for code selection
+static std::expected<Signature, std::string> GenerateSignatureForEARange( ea_t eaStart, ea_t eaEnd, bool wildcardOperands ) {
+    if( eaStart == BADADDR || eaEnd == BADADDR ) {
+        return std::unexpected( "Invalid address" );
+    }
+
+    Signature signature;
+    size_t sigPartLength = 0;
+
+    // Copy data section, no wildcards
+    if( !is_code( get_flags( eaStart ) ) ) {
+        AddBytesToSignature( signature, eaStart, eaEnd - eaStart, false );
+        return signature;
+    }
+
+    auto currentAddress = eaStart;
+    while( true ) {
+        insn_t instruction;
+        auto currentInstructionLength = decode_insn( &instruction, currentAddress );
+        if( currentInstructionLength <= 0 ) {
+            if( signature.empty() ) {
+                return std::unexpected( "Failed to decode first instruction" );
+            }
+
+            msg( "Signature reached end of executable code @ %I64X\n", currentAddress );
+            // If we have some bytes left, add them
+            if( currentAddress < eaEnd ) {
+                AddBytesToSignature( signature, currentAddress, eaEnd - currentAddress, false );
+            }
+            TrimSignature( signature );
+            return signature;
+        }
+
+        sigPartLength += currentInstructionLength;
+
+        uint8_t operandOffset = 0, operandLength = 0;
+        if( wildcardOperands && GetOperand( instruction, &operandOffset, &operandLength ) && operandLength > 0 ) {
+            // Add opcodes
+            AddBytesToSignature( signature, currentAddress, operandOffset, false );
+            // Wildcards for operands
+            AddBytesToSignature( signature, currentAddress + operandOffset, operandLength, true );
+            // If the operand is on the "left side", add the operator from the "right side"
+            if( operandOffset == 0 ) {
+                AddBytesToSignature( signature, currentAddress + operandLength, currentInstructionLength - operandLength, false );
+            }
+        }
+        else {
+            // No operand, add all bytes
+            AddBytesToSignature( signature, currentAddress, currentInstructionLength, false );
+        }
+        currentAddress += currentInstructionLength;
+
+        if( currentAddress >= eaEnd ) {
+
+            TrimSignature( signature );
+            return signature;
+        }
+    }
+    return std::unexpected( "Unknown" );
+}
+
 static std::string FormatSignature( const Signature& signature, SignatureType type ) {
     using enum SignatureType;
     switch( type ) {
@@ -324,7 +385,7 @@ static void FindXRefs( ea_t ea, bool wildcardOperands, std::vector<std::tuple<ea
         }
 
         // Genreate signature for xref
-        auto signature = GenerateSignatureForEA( xref.from, wildcardOperands, maxSignatureLength, false );
+        auto signature = GenerateUniqueSignatureForEA( xref.from, wildcardOperands, maxSignatureLength, false );
         if( !signature.has_value() ) {
             continue;
         }
@@ -356,14 +417,18 @@ static void PrintXRefSignaturesForEA( ea_t ea, const std::vector<std::tuple<ea_t
     }
 }
 
-static void PrintSelectedCode( ea_t start, ea_t end, SignatureType sigType ) {
+static void PrintSelectedCode( ea_t start, ea_t end, SignatureType sigType, bool wildcardOperands ) {
     const auto selectionSize = end - start;
     __assume( selectionSize > 0 );
-    // Create signature from selection
-    Signature signature;
-    AddBytesToSignature( signature, start, selectionSize, false );
+    // Create signature of fixed size from selection
 
-    const auto signatureStr = FormatSignature( signature, sigType );
+    auto signature = GenerateSignatureForEARange( start, end, wildcardOperands );
+    if( !signature.has_value() ) {
+        msg( "Error: %s\n", signature.error().c_str() );
+        return;
+    }
+
+    const auto signatureStr = FormatSignature( signature.value(), sigType );
     msg( "Code for %I64X-%I64X: %s\n", start, end, signatureStr.c_str() );
     SetClipboardText( signatureStr );
 }
@@ -508,7 +573,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
         "Signature Maker\n"                                                     // Title
 
         "Select action:\n"                                                      // Title
-        "<Create Signature for current code address:R>\n"                       // Radio Button 0
+        "<Create unique Signature for current code address:R>\n"                       // Radio Button 0
         "<Find shortest XREF Signature for current data or code address:R>\n"	// Radio Button 1
         "<Copy selected code:R>\n"                                              // Radio Button 2
         "<Search for a signature:R>>\n"                                         // Radio Button 3
@@ -532,7 +597,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
         {
             // Find unique signature for current address
             const auto ea = get_screen_ea();
-            auto signature = GenerateSignatureForEA( ea, wildcardOperands );
+            auto signature = GenerateUniqueSignatureForEA( ea, wildcardOperands );
             PrintSignatureForEA( signature, ea, sigType );
             break;
         }
@@ -552,7 +617,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
             // Print selected code as signature
             ea_t start, end;
             if( read_range_selection( get_current_viewer(), &start, &end ) ) {
-                PrintSelectedCode( start, end, sigType );
+                PrintSelectedCode( start, end, sigType, wildcardOperands );
             }
             else {
                 msg( "Select a range to copy the code\n" );
