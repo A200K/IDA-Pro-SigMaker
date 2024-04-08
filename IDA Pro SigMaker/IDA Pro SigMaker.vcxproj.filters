@@ -16,6 +16,12 @@
     <Filter Include="Plugin">
       <UniqueIdentifier>{c6ed3fe7-0d2a-4c59-9663-428e1081b99e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Utils">
+      <UniqueIdentifier>{72324c0d-c7b6-4c67-955e-7c3cb6b5676f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SignatureUtils">
+      <UniqueIdentifier>{a9c63b7f-3d6d-4115-bbfe-9c16405e2321}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -24,12 +30,27 @@
     <ClCompile Include="Plugin.cpp">
       <Filter>Plugin</Filter>
     </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="SignatureUtils.cpp">
+      <Filter>SignatureUtils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Plugin.h">
       <Filter>Plugin</Filter>
     </ClInclude>
     <ClInclude Include="Main.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.h">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="SignatureUtils.h">
+      <Filter>SignatureUtils</Filter>
+    </ClInclude>
+    <ClInclude Include="Version.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

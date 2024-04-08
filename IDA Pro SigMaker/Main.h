@@ -6,8 +6,8 @@
 #include <sstream>
 #include <format>
 #include <vector>
-#include <regex>
 
+#include "Version.h"
 #include "Plugin.h"
 
 // Signature types and structures

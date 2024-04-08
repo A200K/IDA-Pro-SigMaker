@@ -1,4 +1,5 @@
 #include "Plugin.h"
+#include "Version.h"
 
 plugin_t PLUGIN = {
     IDP_INTERFACE_VERSION,
@@ -6,8 +7,8 @@ plugin_t PLUGIN = {
     init,
     nullptr,
     nullptr,
-    "Signature Maker for IDA Pro by A200K",
+    PLUGIN_NAME " v" PLUGIN_VERSION " for IDA Pro by A200K",
     "Select location in disassembly and press CTRL+ALT+S to open menu",
-    "Signature Maker",
+    PLUGIN_NAME,
     "Ctrl-Alt-S"
 };
