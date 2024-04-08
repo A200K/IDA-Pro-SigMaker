@@ -7,7 +7,7 @@ Signature Maker Plugin for IDA Pro 8.3
 ## Installation
 Drop into plugins folder of your IDA installation.
 
-`%AppData%\Roaming\Hex-Rays\IDA Pro\plugins`
+`%AppData%\Hex-Rays\IDA Pro\plugins`
 
 ## Usage
 In disassembly view, select a line you want to generate a signature for, and press 

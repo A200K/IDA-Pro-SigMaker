@@ -266,7 +266,7 @@ void PrintSignatureForEA(const std::expected<Signature, std::string>& signature,
 static void FindXRefs(ea_t ea, bool wildcardOperands, bool continueOutsideOfFunction, std::vector<std::tuple<ea_t, Signature>>& xrefSignatures, size_t maxSignatureLength) {
 	xrefblk_t xref{};
 
-	// Count non-code xrefs
+	// Count code xrefs
 	size_t xrefCount = 0;
 	for (auto xref_ok = xref.first_to(ea, XREF_FAR); xref_ok; xref_ok = xref.next_to()) {
 		if (!is_code(get_flags(xref.from))) {
@@ -275,20 +275,32 @@ static void FindXRefs(ea_t ea, bool wildcardOperands, bool continueOutsideOfFunc
 		++xrefCount;
 	}
 
+	size_t shortestSignatureLength = maxSignatureLength + 1;
+
 	size_t i = 0;
 	for (auto xref_ok = xref.first_to(ea, XREF_FAR); xref_ok; xref_ok = xref.next_to(), ++i) {
+
+		// Instantly abort
+		if (user_cancelled()) {
+			break;
+		}
 
 		// Skip data refs, xref.iscode is not what we want though
 		if (!is_code(get_flags(xref.from))) {
 			continue;
 		}
 
-		replace_wait_box("Processing xref %llu of %llu (%0.1f%%)...", i+1, xrefCount, ( static_cast<float>(i) / xrefCount) * 100.0f );
+		replace_wait_box("Processing xref %llu of %llu (%0.1f%%)...\n\nSuitable Signatures: %llu\nShortest Signature: %llu Bytes", i + 1, xrefCount, (static_cast<float>(i) / xrefCount) * 100.0f, xrefSignatures.size(), (shortestSignatureLength <= maxSignatureLength ? shortestSignatureLength : 0));
 
 		// Genreate signature for xref
 		auto signature = GenerateUniqueSignatureForEA(xref.from, wildcardOperands, continueOutsideOfFunction, maxSignatureLength, false);
 		if (!signature.has_value()) {
 			continue;
+		}
+
+		// Update for statistics
+		if (signature.value().size() < shortestSignatureLength) {
+			shortestSignatureLength = signature.value().size();
 		}
 
 		xrefSignatures.push_back(std::make_pair(xref.from, signature.value()));
