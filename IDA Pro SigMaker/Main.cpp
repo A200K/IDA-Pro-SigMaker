@@ -265,12 +265,25 @@ void PrintSignatureForEA(const std::expected<Signature, std::string>& signature,
 
 static void FindXRefs(ea_t ea, bool wildcardOperands, bool continueOutsideOfFunction, std::vector<std::tuple<ea_t, Signature>>& xrefSignatures, size_t maxSignatureLength) {
 	xrefblk_t xref{};
+
+	// Count non-code xrefs
+	size_t xrefCount = 0;
 	for (auto xref_ok = xref.first_to(ea, XREF_FAR); xref_ok; xref_ok = xref.next_to()) {
+		if (!is_code(get_flags(xref.from))) {
+			continue;
+		}
+		++xrefCount;
+	}
+
+	size_t i = 0;
+	for (auto xref_ok = xref.first_to(ea, XREF_FAR); xref_ok; xref_ok = xref.next_to(), ++i) {
 
 		// Skip data refs, xref.iscode is not what we want though
 		if (!is_code(get_flags(xref.from))) {
 			continue;
 		}
+
+		replace_wait_box("Processing xref %llu of %llu (%0.1f%%)...", i+1, xrefCount, ( static_cast<float>(i) / xrefCount) * 100.0f );
 
 		// Genreate signature for xref
 		auto signature = GenerateUniqueSignatureForEA(xref.from, wildcardOperands, continueOutsideOfFunction, maxSignatureLength, false);
