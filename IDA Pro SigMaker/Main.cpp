@@ -274,7 +274,7 @@ void PrintSignatureForEA( const std::expected<Signature, std::string>& signature
 	}
 }
 
-static void FindXRefs( ea_t ea, bool wildcardOperands, bool continueOutsideOfFunction, std::vector<std::tuple<ea_t, Signature>>& xrefSignatures, size_t maxSignatureLength ) {
+static void FindXRefs( ea_t ea, bool wildcardOperands, bool continueOutsideOfFunction, std::vector<std::tuple<ea_t, Signature>>& xrefSignatures, size_t maxSignatureLength, uint32_t operandTypeBitmask ) {
 	xrefblk_t xref{};
 
 	// Count code xrefs
@@ -304,7 +304,7 @@ static void FindXRefs( ea_t ea, bool wildcardOperands, bool continueOutsideOfFun
 		replace_wait_box( "Processing xref %llu of %llu (%0.1f%%)...\n\nSuitable Signatures: %llu\nShortest Signature: %llu Bytes", i + 1, xrefCount, ( static_cast<float>( i ) / xrefCount ) * 100.0f, xrefSignatures.size( ), ( shortestSignatureLength <= maxSignatureLength ? shortestSignatureLength : 0 ) );
 
 		// Genreate signature for xref
-		auto signature = GenerateUniqueSignatureForEA( xref.from, wildcardOperands, continueOutsideOfFunction, maxSignatureLength, false );
+		auto signature = GenerateUniqueSignatureForEA( xref.from, wildcardOperands, continueOutsideOfFunction, operandTypeBitmask, maxSignatureLength, false );
 		if( !signature.has_value( ) ) {
 			continue;
 		}
@@ -526,7 +526,6 @@ bool idaapi plugin_ctx_t::run( size_t ) {
 
 	if( ask_form( format, &action, &outputFormat, &options, &ConfigureOperandWildcardBitmask ) ) {
 		const auto wildcardOperands = options & ( 1 << 0 );
-		//const auto wildcardRVAOnly = options & ( 1 << 1 );
 		const auto continueOutsideOfFunction = options & ( 1 << 1 );
 
 		const auto sigType = static_cast<SignatureType>( outputFormat );
@@ -552,7 +551,7 @@ bool idaapi plugin_ctx_t::run( size_t ) {
 
 			show_wait_box( "Finding references and generating signatures. This can take a while..." );
 
-			FindXRefs( ea, wildcardOperands, continueOutsideOfFunction, xrefSignatures, 250 );
+			FindXRefs( ea, wildcardOperands, continueOutsideOfFunction, xrefSignatures, 250, WildcardableOperandTypeBitmask );
 
 			// Print top 5 shortest signatures
 			PrintXRefSignaturesForEA( ea, xrefSignatures, sigType, 5 );
