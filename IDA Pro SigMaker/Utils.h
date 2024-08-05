@@ -10,5 +10,8 @@
 
 // Generic utility functions
 
-bool SetClipboardText(std::string_view text);
-bool GetRegexMatches(std::string string, std::regex regex, std::vector<std::string>& matches);
+bool SetClipboardText( std::string_view text );
+bool GetRegexMatches( std::string string, std::regex regex, std::vector<std::string>& matches );
+constexpr auto BIT( uint32_t x ) {
+    return 1LLU << x;
+}
