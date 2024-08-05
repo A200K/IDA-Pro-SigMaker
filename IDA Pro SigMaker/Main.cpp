@@ -67,7 +67,7 @@ static bool GetOperand(const insn_t& instruction, uint8_t* operandOffset, uint8_
 	return false;
 }
 
-static std::vector<ea_t> FindSignatureOccurences(std::string_view idaSignature) {
+static std::vector<ea_t> FindSignatureOccurences(std::string_view idaSignature, bool skipMoreThanOne = false) {
 	// Convert signature string to searchable struct
 	compiled_binpat_vec_t binaryPattern;
 	parse_binpat_str(&binaryPattern, inf.min_ea, idaSignature.data(), 16);
@@ -77,9 +77,15 @@ static std::vector<ea_t> FindSignatureOccurences(std::string_view idaSignature) 
 	auto ea = inf.min_ea;
 	while (true) {
 		auto occurence = bin_search2(ea, inf.max_ea, binaryPattern, BIN_SEARCH_NOCASE | BIN_SEARCH_FORWARD);
+
 		// Signature not found anymore
 		if (occurence == BADADDR) {
-			return results;
+			break;
+		}
+
+		//  In case we only care about uniqueness, return after more than one result
+		if (skipMoreThanOne && results.size() > 1) {
+			break;
 		}
 
 		results.push_back(occurence);
@@ -90,7 +96,7 @@ static std::vector<ea_t> FindSignatureOccurences(std::string_view idaSignature) 
 }
 
 static bool IsSignatureUnique(std::string_view idaSignature) {
-	return FindSignatureOccurences(idaSignature).size() == 1;
+	return FindSignatureOccurences(idaSignature, true).size() == 1;
 }
 
 static std::expected<Signature, std::string> GenerateUniqueSignatureForEA(const ea_t ea, bool wildcardOperands, bool continueOutsideOfFunction, size_t maxSignatureLength = 1000, bool askLongerSignature = true) {
