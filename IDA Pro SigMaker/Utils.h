@@ -4,9 +4,10 @@
 #define _REGEX_MAX_STACK_COUNT 20000
 
 #include <Windows.h>
-#include <vector>
+#include <stdint.h>
 #include <regex>
-#include <string_view>
+#include <string>
+#include <vector>
 
 // Generic utility functions
 

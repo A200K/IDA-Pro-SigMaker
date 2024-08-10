@@ -1,4 +1,5 @@
 #include "Utils.h"
+#include <stddef.h>
 
 bool GetRegexMatches( std::string string, std::regex regex, std::vector<std::string>& matches ) {
 	std::sregex_iterator iter( string.begin( ), string.end( ), regex );
