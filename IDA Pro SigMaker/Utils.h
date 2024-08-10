@@ -3,7 +3,11 @@
 // To fix regex_error(error_stack) for longer signatures
 #define _REGEX_MAX_STACK_COUNT 20000
 
-#include <Windows.h>
+#ifdef _WIN32
+#	define NOMINMAX
+#	include <Windows.h>
+#endif
+
 #include <stdint.h>
 #include <regex>
 #include <string>
