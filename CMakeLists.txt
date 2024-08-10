@@ -8,10 +8,10 @@ include($ENV{IDASDK}/ida-cmake/idasdk.cmake)
 
 set(PLUGIN_NAME sigmaker)
 set(PLUGIN_SOURCES
-    "IDA Pro SigMaker/Main.cpp"
-    "IDA Pro SigMaker/Plugin.cpp"
-    "IDA Pro SigMaker/SignatureUtils.cpp"
-    "IDA Pro SigMaker/Utils.cpp"
+    "src/Main.cpp"
+    "src/Plugin.cpp"
+    "src/SignatureUtils.cpp"
+    "src/Utils.cpp"
 )
 
 generate()
