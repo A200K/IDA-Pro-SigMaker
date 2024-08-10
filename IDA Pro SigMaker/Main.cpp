@@ -377,7 +377,7 @@ static void SearchSignatureString( std::string input ) {
 		if( GetRegexMatches( input, std::regex( R"(\\x(?:[0-9A-F]{2}))" ), rawByteStrings ) && rawByteStrings.size( ) == stringMask.length( ) ) {
 			Signature convertedSignature;
 			for( size_t i = 0; const auto & m : rawByteStrings ) {
-				SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), stringMask[i++] == '?' };
+				SignatureByte b{ static_cast<uint8_t>( std::stoi( m.substr( 2 ), nullptr, 16 ) ), stringMask[i++] == '?' };
 				convertedSignature.push_back( b );
 			}
 			convertedSignatureString = BuildIDASignatureString( convertedSignature );
@@ -386,7 +386,7 @@ static void SearchSignatureString( std::string input ) {
 		else if( GetRegexMatches( input, std::regex( R"((?:0x(?:[0-9A-F]{2}))+)" ), rawByteStrings ) && rawByteStrings.size( ) == stringMask.length( ) ) {
 			Signature convertedSignature;
 			for( size_t i = 0; const auto & m : rawByteStrings ) {
-				SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), stringMask[i++] == '?' };
+				SignatureByte b{ static_cast<uint8_t>( std::stoi( m.substr( 2 ), nullptr, 16 ) ), stringMask[i++] == '?' };
 				convertedSignature.push_back( b );
 			}
 			convertedSignatureString = BuildIDASignatureString( convertedSignature );
@@ -423,7 +423,7 @@ static void SearchSignatureString( std::string input ) {
 			if( GetRegexMatches( input, std::regex( R"(\\x(?:[0-9A-F]{2}))" ), rawByteStrings ) && rawByteStrings.size( ) > 1 ) {
 				Signature convertedSignature;
 				for( size_t i = 0; const auto & m : rawByteStrings ) {
-					SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), false };
+					SignatureByte b{ static_cast<uint8_t>( std::stoi( m.substr( 2 ) ), nullptr, 16 ), false };
 					convertedSignature.push_back( b );
 				}
 				convertedSignatureString = BuildIDASignatureString( convertedSignature );
@@ -432,7 +432,7 @@ static void SearchSignatureString( std::string input ) {
 			else if( GetRegexMatches( input, std::regex( R"((?:0x(?:[0-9A-F]{2}))+)" ), rawByteStrings ) && rawByteStrings.size( ) > 1 ) {
 				Signature convertedSignature;
 				for( size_t i = 0; const auto & m : rawByteStrings ) {
-					SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), false };
+					SignatureByte b{ static_cast<uint8_t>( std::stoi( m.substr( 2 ) ), nullptr, 16 ), false };
 					convertedSignature.push_back( b );
 				}
 				convertedSignatureString = BuildIDASignatureString( convertedSignature );
