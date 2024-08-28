@@ -1,0 +1,3 @@
+[submodule "IDA Pro SigMaker/signature"]
+	path = IDA Pro SigMaker/signature
+	url = https://github.com/qis/signature.git

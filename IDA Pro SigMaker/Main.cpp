@@ -2,7 +2,13 @@
 #include "Utils.h"
 #include "SignatureUtils.h"
 
+#define QIS_SIGNATURE_USE_AVX2 1 
+#include "signature/include/qis/signature.hpp"
+
 bool IS_ARM = false;
+bool USE_QIS_SIGNATURE = false;
+
+std::vector<uint8_t> FILE_BUFFER = {};
 
 static bool IsARM( ) {
 	return std::string_view( "ARM" ) == inf.procname;
@@ -72,7 +78,79 @@ static bool GetOperand( const insn_t& instruction, uint8_t* operandOffset, uint8
 	return false;
 }
 
+// Credit: belmeopmenieuwesim @ https://github.com/belmeopmenieuwesim/IDA-Pro-SigMaker/blob/697bebd3ecd71cb8af21ab10fb5006af8676252f/IDA%20Pro%20SigMaker/Main.cpp#L204C1-L227C52
+static std::vector<uint8_t> ReadSegmentsToBuffer( ) {
+	std::vector<uint8_t> buffer;
+
+	// Iterate over all segments
+	for( int i = 0; i < get_segm_qty( ); ++i ) {
+		auto seg = getnseg( i );
+		if( !seg ) {
+			continue;
+		}
+
+		auto ea = buffer.empty( ) ? inf.min_ea : seg->start_ea;
+		size_t size = seg->end_ea - ea;
+
+		// Resize the buffer to accommodate the segment data
+		auto current_size = buffer.size( );
+		buffer.resize( current_size + size );
+
+		// Read the segment data into the buffer
+		get_bytes( &buffer[current_size], size, ea );
+	}
+
+	return buffer;
+}
+
+static std::string IdaToQisSignatureStr( std::string_view idaSignature ) {
+	// Qis signature uses double quotes
+	return std::regex_replace( idaSignature.data( ), std::regex( "\\?" ), "??" );
+}
+
+static std::vector<ea_t> FindSignatureOccurencesQis( std::string_view idaSignature, bool skipMoreThanOne = false ) {
+
+	// Load file into our own buffer, since we can't get a direct pointer
+	if( FILE_BUFFER.empty( ) ) {
+		show_wait_box( "Please stand by, copying segments..." );
+		FILE_BUFFER = ReadSegmentsToBuffer( );
+		hide_wait_box( );
+	}
+
+	// Create qis signature from signature string
+	const qis::signature qisSignature( IdaToQisSignatureStr( idaSignature ) );
+
+	// Search for occurences
+	std::vector<ea_t> results;
+	auto currentPtr = FILE_BUFFER.data( );
+	while( true ) {
+		auto occurence = qis::scan( currentPtr, FILE_BUFFER.size( ) - ( currentPtr - FILE_BUFFER.data( ) ), qisSignature );
+
+		// Signature not found anymore
+		if( occurence == qis::npos ) {
+			break;
+		}
+
+		//  In case we only care about uniqueness, return after more than one result
+		if( skipMoreThanOne && results.size( ) > 1 ) {
+			break;
+		}
+
+		auto fileOffset = ( ( currentPtr - FILE_BUFFER.data( ) ) + occurence );
+
+		results.push_back( inf.min_ea + fileOffset );
+
+		currentPtr = FILE_BUFFER.data( ) + fileOffset + 1;
+	}
+	return results;
+}
+
 static std::vector<ea_t> FindSignatureOccurences( std::string_view idaSignature, bool skipMoreThanOne = false ) {
+
+	if( USE_QIS_SIGNATURE ) {
+		return FindSignatureOccurencesQis( idaSignature, skipMoreThanOne );
+	}
+
 	// Convert signature string to searchable struct
 	compiled_binpat_vec_t binaryPattern;
 	parse_binpat_str( &binaryPattern, inf.min_ea, idaSignature.data( ), 16 );
@@ -457,8 +535,11 @@ static void SearchSignatureString( std::string input ) {
 		return;
 	}
 
+	// Remove space from the end
+	convertedSignatureString = std::regex_replace( convertedSignatureString, std::regex( "[? ]+$" ), "" );
+
 	// Print results
-	msg( "Signature: %s\n", convertedSignatureString.c_str( ) );
+	msg( "Results for %s:\n", convertedSignatureString.c_str( ) );
 	auto signatureMatches = FindSignatureOccurences( convertedSignatureString );
 	if( signatureMatches.empty( ) ) {
 		msg( "Signature does not match!\n" );
@@ -469,7 +550,8 @@ static void SearchSignatureString( std::string input ) {
 	}
 }
 
-static uint32_t WildcardableOperandTypeBitmask = BIT( o_reg ) | BIT( o_mem ) | BIT( o_phrase ) | BIT( o_displ ) | BIT( o_imm ) | BIT( o_far ) | BIT( o_near ) | BIT( o_idpspec0 ) | BIT( o_idpspec1 ) | BIT( o_idpspec2 ) | BIT( o_idpspec3 ) | BIT( o_idpspec4 ) | BIT( o_idpspec5 );
+//static uint32_t WildcardableOperandTypeBitmaskAll = BIT( o_reg ) | BIT( o_mem ) | BIT( o_phrase ) | BIT( o_displ ) | BIT( o_imm ) | BIT( o_far ) | BIT( o_near ) | BIT( o_idpspec0 ) | BIT( o_idpspec1 ) | BIT( o_idpspec2 ) | BIT( o_idpspec3 ) | BIT( o_idpspec4 ) | BIT( o_idpspec5 );
+static uint32_t WildcardableOperandTypeBitmask = BIT( o_reg ) | BIT( o_mem ) | BIT( o_phrase ) | BIT( o_displ ) | BIT( o_far ) | BIT( o_near ) | BIT( o_idpspec0 ) | BIT( o_idpspec1 ) | BIT( o_idpspec2 ) | BIT( o_idpspec3 ) | BIT( o_idpspec4 ) | BIT( o_idpspec5 );
 
 void ConfigureOperandWildcardBitmask( ) {
 	const char format[] =
@@ -498,11 +580,14 @@ bool idaapi plugin_ctx_t::run( size_t ) {
 		IS_ARM = true;
 	}
 
-	// Show dialog
-	const char format[] =
-		"STARTITEM 0\n"																																				// TabStop
-		PLUGIN_NAME " v" PLUGIN_VERSION "\n"																														// Title
+	// Check for AVX2, for faster signature creation
+	if( IsProcessorFeaturePresent( PF_AVX2_INSTRUCTIONS_AVAILABLE ) ) {
+		USE_QIS_SIGNATURE = true;
+	}
 
+	// Show dialog
+
+	const char menuItems[] =
 		"Select action:\n"																																			// Title
 		"<#Select an address, and create a code signature for it#Create unique Signature for current code address:R>\n"												// Radio Button 0
 		"<#Select an address or variable, and create code signatures for its references. Will output the shortest 5 signatures#Find shortest XREF Signature for current data or code address:R>\n"			// Radio Button 1
@@ -520,11 +605,20 @@ bool idaapi plugin_ctx_t::run( size_t ) {
 		"<#Don't stop signature generation when reaching end of function#Continue when leaving function scope:C>>\n"												// Checkbox Button 1
 		"<#Configure operand types that should be wildcarded#Operand types...:B::::>\n";																			// Button 0
 
+	std::stringstream formString;
+	formString << "STARTITEM 0\n";
+	formString << PLUGIN_NAME " v" PLUGIN_VERSION;	// Title
+	if( USE_QIS_SIGNATURE ) {
+		formString << " (AVX2)";
+	}
+	formString << "\n";
+	formString << menuItems; // Content
+
 	static short action = 0;
 	static short outputFormat = 0;
 	static short options = ( 1 << 0 | 0 << 1 );
 
-	if( ask_form( format, &action, &outputFormat, &options, &ConfigureOperandWildcardBitmask ) ) {
+	if( ask_form( formString.str( ).c_str( ), &action, &outputFormat, &options, &ConfigureOperandWildcardBitmask ) ) {
 		const auto wildcardOperands = options & ( 1 << 0 );
 		const auto continueOutsideOfFunction = options & ( 1 << 1 );
 
