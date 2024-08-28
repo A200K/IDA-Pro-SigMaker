@@ -46,3 +46,9 @@ Currently, all output formats you can generate are supported.
 Match(es) of your signature will be printed to console:
 
 ![](https://i.imgur.com/Pe4REkX.png)
+
+___
+### Other
+This plugin uses qis's AVX2-optimized signature searching library: https://github.com/qis/signature
+
+If the CPU doesn't support AVX2, it will fallback to the slow builtin IDA functions.
