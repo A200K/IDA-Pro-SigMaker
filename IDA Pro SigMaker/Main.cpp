@@ -89,7 +89,7 @@ static std::vector<uint8_t> ReadSegmentsToBuffer( ) {
 			continue;
 		}
 
-		auto ea = buffer.empty( ) ? inf.min_ea : seg->start_ea;
+		auto ea = buffer.empty( ) ? inf_get_min_ea( ) : seg->start_ea;
 		size_t size = seg->end_ea - ea;
 
 		// Resize the buffer to accommodate the segment data
@@ -138,7 +138,7 @@ static std::vector<ea_t> FindSignatureOccurencesQis( std::string_view idaSignatu
 
 		auto fileOffset = ( ( currentPtr - FILE_BUFFER.data( ) ) + occurence );
 
-		results.push_back( inf.min_ea + fileOffset );
+		results.push_back( inf_get_min_ea( ) + fileOffset );
 
 		currentPtr = FILE_BUFFER.data( ) + fileOffset + 1;
 	}

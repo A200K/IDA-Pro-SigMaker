@@ -7,20 +7,26 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IDA Pro SigMaker", "IDA Pro
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		IDA Plugin (32-Bit)|x64 = IDA Plugin (32-Bit)|x64
-		IDA Plugin (32-Bit)|x86 = IDA Plugin (32-Bit)|x86
-		IDA Plugin (64-Bit)|x64 = IDA Plugin (64-Bit)|x64
-		IDA Plugin (64-Bit)|x86 = IDA Plugin (64-Bit)|x86
+		IDA 8 Plugin (32-Bit)|x64 = IDA 8 Plugin (32-Bit)|x64
+		IDA 8 Plugin (32-Bit)|x86 = IDA 8 Plugin (32-Bit)|x86
+		IDA 8 Plugin (64-Bit)|x64 = IDA 8 Plugin (64-Bit)|x64
+		IDA 8 Plugin (64-Bit)|x86 = IDA 8 Plugin (64-Bit)|x86
+		IDA 9 Plugin|x64 = IDA 9 Plugin|x64
+		IDA 9 Plugin|x86 = IDA 9 Plugin|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (32-Bit)|x64.ActiveCfg = IDA Plugin (32-Bit)|x64
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (32-Bit)|x64.Build.0 = IDA Plugin (32-Bit)|x64
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (32-Bit)|x86.ActiveCfg = IDA Plugin (32-Bit)|Win32
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (32-Bit)|x86.Build.0 = IDA Plugin (32-Bit)|Win32
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (64-Bit)|x64.ActiveCfg = IDA Plugin (64-Bit)|x64
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (64-Bit)|x64.Build.0 = IDA Plugin (64-Bit)|x64
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (64-Bit)|x86.ActiveCfg = IDA Plugin (64-Bit)|Win32
-		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA Plugin (64-Bit)|x86.Build.0 = IDA Plugin (64-Bit)|Win32
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (32-Bit)|x64.ActiveCfg = IDA Plugin (32-Bit)|x64
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (32-Bit)|x64.Build.0 = IDA Plugin (32-Bit)|x64
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (32-Bit)|x86.ActiveCfg = IDA Plugin (32-Bit)|Win32
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (32-Bit)|x86.Build.0 = IDA Plugin (32-Bit)|Win32
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (64-Bit)|x64.ActiveCfg = IDA Plugin (64-Bit)|x64
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (64-Bit)|x64.Build.0 = IDA Plugin (64-Bit)|x64
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (64-Bit)|x86.ActiveCfg = IDA Plugin (64-Bit)|Win32
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 8 Plugin (64-Bit)|x86.Build.0 = IDA Plugin (64-Bit)|Win32
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 9 Plugin|x64.ActiveCfg = IDA 9 Plugin|x64
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 9 Plugin|x64.Build.0 = IDA 9 Plugin|x64
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 9 Plugin|x86.ActiveCfg = IDA 9 Plugin|Win32
+		{592D07EA-CC3B-4F3E-904C-E21D8F299E8F}.IDA 9 Plugin|x86.Build.0 = IDA 9 Plugin|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
