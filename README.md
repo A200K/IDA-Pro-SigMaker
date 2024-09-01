@@ -1,8 +1,10 @@
 # IDA Pro SigMaker
-Signature Maker Plugin for IDA Pro 8.3
+Signature Maker Plugin for IDA Pro v8 and v9
+
+If you are a IDA Pro 9 user, check out the [IDA9 branch](https://github.com/A200K/IDA-Pro-SigMaker/tree/IDA9)
 
 ## Requirements
-- IDA Pro Plugin SDK 8.3. Previous versions >= 8.0 might work as well though.
+- IDA Pro Plugin SDK 8 / 9
 
 ## Installation
 Drop into plugins folder of your IDA installation.
