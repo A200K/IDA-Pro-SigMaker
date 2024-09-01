@@ -1,10 +1,7 @@
 # IDA Pro SigMaker
-Signature Maker Plugin for IDA Pro v8 and v9
+Signature Maker Plugin for IDA Pro 8 and 9
 
-If you are a IDA Pro 9 user, check out the [IDA9 branch](https://github.com/A200K/IDA-Pro-SigMaker/tree/IDA9)
-
-## Requirements
-- IDA Pro Plugin SDK 8 / 9
+Plugin downloads are in the [Releases](https://github.com/A200K/IDA-Pro-SigMaker/releases/) section
 
 ## Installation
 Drop into plugins folder of your IDA installation.
@@ -54,3 +51,21 @@ ___
 This plugin uses qis's AVX2-optimized signature searching library: https://github.com/qis/signature
 
 If the CPU doesn't support AVX2, it will fallback to the slow builtin IDA functions.
+
+___
+## Building
+
+### Requirements
+- IDA Pro Plugin SDK 8 / 9
+
+### Setup
+For your convenience, here are the steps to get started:
+```git
+git clone git@github.com:A200K/IDA-Pro-SigMaker.git
+cd IDA-Pro-SigMaker/
+git submodule init
+git submodule update
+```
+Then, 
+- drop the IDA SDK into the according ```SDK/8``` or ```SDK/9``` path
+- open the project with Visual Studio
