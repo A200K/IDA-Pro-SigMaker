@@ -55,6 +55,8 @@ If the CPU doesn't support AVX2, it will fallback to the slow builtin IDA functi
 ___
 ## Building
 
+If you want to compile for IDA 9, check out the [IDA9 branch](https://github.com/A200K/IDA-Pro-SigMaker/tree/IDA9)
+
 ### Requirements
 - IDA Pro Plugin SDK 8 / 9
 
