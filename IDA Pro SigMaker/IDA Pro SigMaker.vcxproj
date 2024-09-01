@@ -110,7 +110,7 @@
     <OutDir>$(SolutionDir)$(Platform)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='IDA 9 Plugin|x64'">
-    <TargetName>SigMaker9</TargetName>
+    <TargetName>SigMaker9_64</TargetName>
     <OutDir>$(SolutionDir)$(Platform)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='IDA Plugin (32-Bit)|x64'">
