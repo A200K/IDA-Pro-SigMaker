@@ -106,15 +106,15 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='IDA Plugin (64-Bit)|x64'">
-    <TargetName>SigMaker64</TargetName>
+    <TargetName>SigMaker8_64</TargetName>
     <OutDir>$(SolutionDir)$(Platform)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='IDA 9 Plugin|x64'">
-    <TargetName>SigMaker9_64</TargetName>
+    <TargetName>SigMaker9</TargetName>
     <OutDir>$(SolutionDir)$(Platform)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='IDA Plugin (32-Bit)|x64'">
-    <TargetName>SigMaker</TargetName>
+    <TargetName>SigMaker8</TargetName>
     <OutDir>$(SolutionDir)$(Platform)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='IDA Plugin (64-Bit)|Win32'">
