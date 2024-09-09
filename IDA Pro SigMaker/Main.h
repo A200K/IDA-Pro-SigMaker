@@ -13,15 +13,15 @@
 
 // Signature types and structures
 enum class SignatureType : uint32_t {
-	IDA = 0,
-	x64Dbg,
-	Signature_Mask,
-	SignatureByteArray_Bitmask
+    IDA = 0,
+    x64Dbg,
+    Signature_Mask,
+    SignatureByteArray_Bitmask
 };
 
 typedef struct {
-	uint8_t value;
-	bool isWildcard;
+    uint8_t value;
+    bool isWildcard;
 } SignatureByte;
 
 using Signature = std::vector<SignatureByte>;
