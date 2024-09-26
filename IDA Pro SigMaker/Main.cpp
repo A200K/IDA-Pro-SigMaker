@@ -461,7 +461,7 @@ static void SearchSignatureString( std::string input ) {
 
 		std::vector<std::string> rawByteStrings;
 		// Search for \x00\x11\x22 type arrays
-		if( GetRegexMatches( input, std::regex( R"(\\x(?:[0-9A-F]{2}))" ), rawByteStrings ) && rawByteStrings.size( ) == stringMask.length( ) ) {
+		if( GetRegexMatches( input, std::regex( R"(\\x(?:[0-9A-F]{2}))", std::regex_constants::icase ), rawByteStrings ) && rawByteStrings.size( ) == stringMask.length( ) ) {
 			Signature convertedSignature;
 			for( size_t i = 0; const auto & m : rawByteStrings ) {
 				SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), stringMask[i++] == '?' };
@@ -470,7 +470,7 @@ static void SearchSignatureString( std::string input ) {
 			convertedSignatureString = BuildIDASignatureString( convertedSignature );
 		}
 		// Search for 0x00, 0x11, 0x22 type arrays
-		else if( GetRegexMatches( input, std::regex( R"((?:0x(?:[0-9A-F]{2}))+)" ), rawByteStrings ) && rawByteStrings.size( ) == stringMask.length( ) ) {
+		else if( GetRegexMatches( input, std::regex( R"((?:0x(?:[0-9A-F]{2}))+)", std::regex_constants::icase ), rawByteStrings ) && rawByteStrings.size( ) == stringMask.length( ) ) {
 			Signature convertedSignature;
 			for( size_t i = 0; const auto & m : rawByteStrings ) {
 				SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), stringMask[i++] == '?' };
@@ -497,7 +497,7 @@ static void SearchSignatureString( std::string input ) {
 		input = std::regex_replace( input, std::regex( R"(\?\? )" ), "? " );
 
 		// Direct match for IDA type signature
-		if( std::regex_match( input, std::regex( R"((?:(?:[A-F0-9]{2}\s+)|(?:\?\s+))+)" ) ) ) {
+		if( std::regex_match( input, std::regex( R"((?:(?:[0-9A-F]{2}\s+)|(?:\?\s+))+)", std::regex_constants::icase ) ) ) {
 			// Just use it
 			convertedSignatureString = input;
 		}
@@ -507,7 +507,7 @@ static void SearchSignatureString( std::string input ) {
 			std::vector<std::string> rawByteStrings;
 			// Search for \x00\x11\x22 type arrays
 
-			if( GetRegexMatches( input, std::regex( R"(\\x(?:[0-9A-F]{2}))" ), rawByteStrings ) && rawByteStrings.size( ) > 1 ) {
+			if( GetRegexMatches( input, std::regex( R"(\\x(?:[0-9A-F]{2}))", std::regex_constants::icase ), rawByteStrings ) && rawByteStrings.size( ) > 1 ) {
 				Signature convertedSignature;
 				for( size_t i = 0; const auto & m : rawByteStrings ) {
 					SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), false };
@@ -516,7 +516,7 @@ static void SearchSignatureString( std::string input ) {
 				convertedSignatureString = BuildIDASignatureString( convertedSignature );
 			}
 			// Search for 0x00, 0x11, 0x22 type arrays
-			else if( GetRegexMatches( input, std::regex( R"((?:0x(?:[0-9A-F]{2}))+)" ), rawByteStrings ) && rawByteStrings.size( ) > 1 ) {
+			else if( GetRegexMatches( input, std::regex( R"((?:0x(?:[0-9A-F]{2}))+)", std::regex_constants::icase ), rawByteStrings ) && rawByteStrings.size( ) > 1 ) {
 				Signature convertedSignature;
 				for( size_t i = 0; const auto & m : rawByteStrings ) {
 					SignatureByte b{ std::stoi( m.substr( 2 ), nullptr, 16 ), false };
